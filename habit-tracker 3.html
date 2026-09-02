@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Habit Tracker</title>
+  <link rel="icon" type="image/x-icon" href="../images.png">
+</head>
+<body>
+  <!--- TITLE AND SUBTITLE --->
+  <h1 id="title">Month</h1>
+  <h2 id="subtitle">Weekly Habit Tracker</h2>
+
+  <!--- WEEK NAVIGATION --->
+  <div id="weekNav">
+    <button id="prevWeek">&lsaquo;</button>
+    <span id="weekLabel">week</span>
+    <button id="nextWeek">&rsaquo;</button>
+  </div>
+
+  <!--- CALENDAR AREA --->
+  <div id="calendarContainer">
+    <div id="caldendarDiv">
+      <!--- ONE BLOCK PER HABIT IS GENERATED HERE --->
+      <div id="habitsList"></div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="addHabitButton">+ Add Habit</button>
+  </div>
+
+</body>
+
+<style>
+  body {
+    background-color: rgb(112, 167, 225);
+    text-align: center;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+
+  #title { margin-top: 80px; line-height: 10px; }
+  #subtitle { opacity: 0.8; font-size: 18px; margin-bottom: 10px; }
+
+  /* WEEK NAV */
+  #weekNav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+  #weekNav button {
+    border: 2px solid black;
+    background: rgb(255, 255, 255);
+    border-radius: 6px;
+    width: 32px; height: 32px;
+    font-size: 18px; cursor: pointer;
+  }
+  #weekLabel { font-size: 17px; min-width: 150px; }
+
+  #calendarContainer { display: flex; justify-content: center; }
+
+  #caldendarDiv {
+    background-color: rgb(192, 192, 192);
+    border-radius: 10px 10px 20px 20px;
+    width: fit-content;
+    min-width: 420px;
+    margin: 0 auto;
+    overflow: hidden;
+    border: 2px solid black;
+  }
+
+  /* ONE HABIT BLOCK */
+  .habit { border-bottom: 2px solid black; }
+  .habit:last-child { border-bottom: none; }
+
+  .habitHeading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    padding: 4px 15px;
+    font-size: 20px;
+    background-color: rgb(180, 180, 180);
+  }
+  .habitTitle { cursor: pointer; margin: 0; text-decoration: underline dotted; }
+  .habitRight { display: flex; align-items: center; gap: 8px; }
+  .habitTotal { font-size: 15px; }
+  .iconBtn {
+    border: 1px solid black; border-radius: 4px;
+    width: 24px; height: 24px; font-size: 14px; line-height: 1; cursor: pointer;
+  }
+  .editBtn { background: white; }
+  .deleteBtn { background: rgb(230, 120, 120); color: white; }
+
+  .habitContent { padding: 12px 15px; }
+
+  /* WEEK ROW */
+  .weekRow {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    justify-items: center;
+  }
+  .dayCell {
+    display: flex; flex-direction: column; align-items: center;
+    width: 40px; margin: 3px; padding: 5px 0;
+    border: 2px solid black; border-radius: 12px;
+    background-color: rgb(242, 242, 242);
+    cursor: pointer; user-select: none;
+    transition: transform 0.1s;
+  }
+  .dayCell:hover { transform: scale(1.06); }
+  .dayCell .dow { font-size: 10px; opacity: 0.7; }
+  .dayCell .num { font-size: 15px; font-weight: bold; }
+  .dayCell.completed { background-color: rgb(76, 175, 80); color: white; }
+  .dayCell.today { outline: 3px solid #2a6; outline-offset: 1px; }
+  .dayCell.future { opacity: 0.35; cursor: not-allowed; }
+  .dayCell.future:hover { transform: none; }
+
+  .emptyState { padding: 30px; opacity: 0.7; }
+
+  #controls { margin-top: 15px; }
+  #controls button {
+    padding: 8px 20px; font-size: 15px; cursor: pointer;
+    border-radius: 6px; border: 2px solid black; background-color: white;
+  }
+
+  /* HISTORY MODAL */
+  .modalOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 10;
+  }
+  .modalBox {
+    background: white; border-radius: 12px; padding: 20px 25px;
+    max-height: 82vh; overflow-y: auto; max-width: 90%;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+  .modalStats { margin: 8px 0 18px; font-size: 16px; }
+  .modalStats b { font-size: 20px; }
+  .historyMonth { margin-bottom: 18px; }
+  .historyMonth h4 { margin: 6px 0; }
+  .historyGrid {
+    display: grid; grid-template-columns: repeat(7, 26px);
+    gap: 3px; justify-content: center;
+  }
+  .hHead { font-size: 11px; opacity: 0.6; }
+  .hcell {
+    width: 26px; height: 26px; line-height: 26px;
+    font-size: 11px; border-radius: 6px; background: #eee;
+  }
+  .hcell.done { background: rgb(76, 175, 80); color: white; }
+  .hcell.blank { background: transparent; }
+  .closeBtn {
+    margin-top: 10px; padding: 8px 24px; font-size: 15px;
+    border: 2px solid black; border-radius: 6px; background: white; cursor: pointer;
+  }
+</style>
+
+<script>
+  /* ---------- DATE HELPERS ---------- */
+  var shortMonths = ["Jan","Feb","Mar","Apr","May","Jun",
+                     "Jul","Aug","Sep","Oct","Nov","Dec"];
+  var fullMonths = ["January","February","March","April","May","June",
+                    "July","August","September","October","November","December"];
+  var dowLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  /* Turn a Date into a "YYYY-MM-DD" string using LOCAL date parts.
+     (Not toISOString(), which uses UTC and can shift the day.) */
+  function toISO(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  /* The Sunday that starts the week, shifted by a number of weeks. */
+  function getWeekStart(offsetWeeks) {
+    var d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - d.getDay() + offsetWeeks * 7);
+    return d;
+  }
+
+  var todayISO = toISO(new Date());
+
+  /* Set the big title to the current month */
+  document.getElementById("title").innerHTML = fullMonths[new Date().getMonth()];
+
+  /* ---------- THE DATA ----------
+     One array of habits. Each completion is a real date string,
+     so it works across weeks and months. This is the single source of truth. */
+  var storageKey = "habitTrackerData";
+
+  function loadHabits() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(storageKey));
+      if (saved) return saved;
+    } catch (e) {}
+    return [{ name: "My New Habit", completed: [] }];
+  }
+  function saveHabits() {
+    try { localStorage.setItem(storageKey, JSON.stringify(habits)); } catch (e) {}
+  }
+
+  var habits = loadHabits();
+  var weekOffset = 0;   // 0 = this week, -1 = last week, etc.
+
+  /* ---------- MAIN SCREEN: DRAW THE CURRENT WEEK ---------- */
+  var habitsList = document.getElementById("habitsList");
+
+  function render() {
+    /* week label, e.g. "Sep 1 – Sep 7" */
+    var start = getWeekStart(weekOffset);
+    var end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    document.getElementById("weekLabel").innerHTML =
+      shortMonths[start.getMonth()] + " " + start.getDate() +
+      " \u2013 " + shortMonths[end.getMonth()] + " " + end.getDate();
+
+    habitsList.innerHTML = "";
+
+    if (habits.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "emptyState";
+      empty.innerHTML = "No habits yet. Click \"+ Add Habit\" to start.";
+      habitsList.appendChild(empty);
+      return;
+    }
+
+    habits.forEach(function (habit, habitIndex) {
+      var block = document.createElement("div");
+      block.className = "habit";
+
+      /* heading: name (opens history) | total | edit | delete */
+      var heading = document.createElement("div");
+      heading.className = "habitHeading";
+
+      var name = document.createElement("p");
+      name.className = "habitTitle";
+      name.innerHTML = habit.name;
+      name.title = "Click to see full history";
+      name.onclick = function () { openHistory(habitIndex); };
+
+      var right = document.createElement("div");
+      right.className = "habitRight";
+
+      var total = document.createElement("span");
+      total.className = "habitTotal";
+      total.innerHTML = "Total: " + habit.completed.length;
+
+      var edit = document.createElement("button");
+      edit.className = "iconBtn editBtn";
+      edit.innerHTML = "&#9998;";           // pencil
+      edit.title = "Rename";
+      edit.onclick = function () { renameHabit(habitIndex); };
+
+      var del = document.createElement("button");
+      del.className = "iconBtn deleteBtn";
+      del.innerHTML = "&times;";
+      del.title = "Delete";
+      del.onclick = function () { deleteHabit(habitIndex); };
+
+      right.appendChild(total);
+      right.appendChild(edit);
+      right.appendChild(del);
+      heading.appendChild(name);
+      heading.appendChild(right);
+
+      /* the 7 day cells for the selected week */
+      var content = document.createElement("div");
+      content.className = "habitContent";
+      var weekRow = document.createElement("div");
+      weekRow.className = "weekRow";
+
+      for (var i = 0; i < 7; i++) {
+        var cellDate = new Date(start);
+        cellDate.setDate(start.getDate() + i);
+        var iso = toISO(cellDate);
+
+        var cell = document.createElement("div");
+        cell.className = "dayCell";
+        cell.innerHTML =
+          "<span class='dow'>" + dowLabels[i] + "</span>" +
+          "<span class='num'>" + cellDate.getDate() + "</span>";
+
+        if (habit.completed.indexOf(iso) !== -1) cell.classList.add("completed");
+        if (iso === todayISO) cell.classList.add("today");
+
+        if (iso > todayISO) {
+          cell.classList.add("future");      // can't complete a future day
+        } else {
+          let dateStr = iso;                  // lock in this cell's date
+          cell.onclick = function () { toggleDate(habitIndex, dateStr); };
+        }
+
+        weekRow.appendChild(cell);
+      }
+
+      content.appendChild(weekRow);
+      block.appendChild(heading);
+      block.appendChild(content);
+      habitsList.appendChild(block);
+    });
+  }
+
+  /* ---------- HISTORY MODAL: DRAW EVERYTHING EVER TRACKED ---------- */
+  function currentStreak(doneSet) {
+    var streak = 0;
+    var d = new Date(); d.setHours(0, 0, 0, 0);
+    if (!doneSet.has(toISO(d))) d.setDate(d.getDate() - 1); // grace for "not yet today"
+    while (doneSet.has(toISO(d))) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  }
+
+  function openHistory(habitIndex) {
+    var habit = habits[habitIndex];
+    var doneSet = new Set(habit.completed);   // fast lookups
+
+    var overlay = document.createElement("div");
+    overlay.className = "modalOverlay";
+    overlay.onclick = function (e) {          // click outside closes
+      if (e.target === overlay) overlay.remove();
+    };
+
+    var boxHTML = "<h2>" + habit.name + "</h2>";
+    boxHTML += "<div class='modalStats'><b>" + habit.completed.length +
+               "</b> total days &nbsp;|&nbsp; <b>" + currentStreak(doneSet) +
+               "</b> day streak</div>";
+
+    if (habit.completed.length === 0) {
+      boxHTML += "<p>No days tracked yet.</p>";
+    } else {
+      /* which months have any completions? show newest first */
+      var monthsWith = {};
+      habit.completed.forEach(function (iso) {
+        monthsWith[iso.slice(0, 7)] = true;   // "YYYY-MM"
+      });
+      var keys = Object.keys(monthsWith).sort().reverse();
+
+      keys.forEach(function (key) {
+        var y = parseInt(key.slice(0, 4), 10);
+        var m = parseInt(key.slice(5, 7), 10) - 1;
+        boxHTML += renderMonthGrid(y, m, doneSet);
+      });
+    }
+
+    boxHTML += "<button class='closeBtn'>Close</button>";
+
+    var box = document.createElement("div");
+    box.className = "modalBox";
+    box.innerHTML = boxHTML;
+    box.querySelector(".closeBtn").onclick = function () { overlay.remove(); };
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+
+  /* build one labeled month calendar; completed days are green */
+  function renderMonthGrid(year, month, doneSet) {
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var firstDow = new Date(year, month, 1).getDay();   // blanks before day 1
+
+    var html = "<div class='historyMonth'><h4>" +
+               fullMonths[month] + " " + year + "</h4><div class='historyGrid'>";
+
+    for (var i = 0; i < 7; i++) html += "<div class='hHead'>" + dowLabels[i][0] + "</div>";
+    for (var b = 0; b < firstDow; b++) html += "<div class='hcell blank'></div>";
+
+    for (var d = 1; d <= daysInMonth; d++) {
+      var iso = year + "-" + String(month + 1).padStart(2, "0") +
+                "-" + String(d).padStart(2, "0");
+      var cls = doneSet.has(iso) ? "hcell done" : "hcell";
+      html += "<div class='" + cls + "'>" + d + "</div>";
+    }
+    html += "</div></div>";
+    return html;
+  }
+
+  /* ---------- ACTIONS (change data -> save -> redraw) ---------- */
+  function toggleDate(habitIndex, iso) {
+    var completed = habits[habitIndex].completed;
+    var idx = completed.indexOf(iso);
+    if (idx !== -1) completed.splice(idx, 1);
+    else completed.push(iso);
+    saveHabits();
+    render();
+  }
+  function addHabit() {
+    var name = prompt("Name your new habit:", "");
+    if (name === null || name.trim().length === 0) return;
+    habits.push({ name: name, completed: [] });
+    saveHabits();
+    render();
+  }
+  function renameHabit(habitIndex) {
+    var name = prompt("Rename this habit:", habits[habitIndex].name);
+    if (name === null || name.trim().length === 0) return;
+    habits[habitIndex].name = name;
+    saveHabits();
+    render();
+  }
+  function deleteHabit(habitIndex) {
+    if (!confirm("Delete \"" + habits[habitIndex].name + "\"?")) return;
+    habits.splice(habitIndex, 1);
+    saveHabits();
+    render();
+  }
+
+  /* ---------- WIRE UP BUTTONS ---------- */
+  document.getElementById("addHabitButton").onclick = addHabit;
+  document.getElementById("prevWeek").onclick = function () { weekOffset--; render(); };
+  document.getElementById("nextWeek").onclick = function () { weekOffset++; render(); };
+
+  /* ---------- FIRST DRAW ---------- */
+  render();
+</script>
+
+</html>
